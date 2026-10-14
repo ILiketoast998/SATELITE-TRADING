@@ -51,6 +51,17 @@ GDAL_ENV = dict(GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR", GDAL_HTTP_MULTIRANGE="
 
 
 # ---------------------------------------------------------------- searching --
+def _session() -> requests.Session:
+    """HTTP session that retries dropped connections and 5xx answers."""
+    from requests.adapters import HTTPAdapter
+    from urllib3.util.retry import Retry
+    s = requests.Session()
+    retry = Retry(total=6, connect=6, read=6, backoff_factor=2,
+                  status_forcelist=(429, 500, 502, 503, 504), allowed_methods=("GET",))
+    s.mount("https://", HTTPAdapter(max_retries=retry))
+    return s
+
+
 def search_stac(source, bbox, start, end, max_cloud):
     from pystac_client import Client
     modifier = None
@@ -88,6 +99,7 @@ def search_s3(bbox, start, end, max_cloud, tiles=None):
     if not tiles:
         tiles = sorted({mgrs_tile(x, y) for x in (w, e, (w + e) / 2) for y in (s, n, (s + n) / 2)})
     d0, d1 = date.fromisoformat(start), date.fromisoformat(end)
+    http = _session()
     items = []
     for tile in tiles:
         m = re.fullmatch(r"(\d{1,2})([C-X])([A-Z]{2})", tile)
@@ -96,7 +108,7 @@ def search_s3(bbox, start, end, max_cloud, tiles=None):
         y, mo = d0.year, d0.month
         while (y, mo) <= (d1.year, d1.month):
             prefix = f"{PREFIX}/{m[1]}/{m[2]}/{m[3]}/{y}/{mo}/"
-            r = requests.get(BUCKET, params={"list-type": "2", "prefix": prefix, "delimiter": "/"},
+            r = http.get(BUCKET, params={"list-type": "2", "prefix": prefix, "delimiter": "/"},
                              timeout=60)
             r.raise_for_status()
             for scene in re.findall(r"<Prefix>([^<]+_L2A)/</Prefix>", r.text):
@@ -104,7 +116,11 @@ def search_s3(bbox, start, end, max_cloud, tiles=None):
                 day = datetime.strptime(name.split("_")[2], "%Y%m%d").date()
                 if not d0 <= day <= d1:
                     continue
-                js = requests.get(f"{BUCKET}/{scene}/{name}.json", timeout=60)
+                try:
+                    js = http.get(f"{BUCKET}/{scene}/{name}.json", timeout=60)
+                except requests.RequestException as e:
+                    log.warning("skipping %s: %s", name, e)
+                    continue
                 if js.status_code != 200:
                     continue
                 it = js.json()
