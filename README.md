@@ -176,6 +176,24 @@ runs went through `--source aws-s3`.
   tracks EIA week to week; run it with `--eia` yourself. Until then this series
   is unvalidated.
 
+- **Winter 2024-25 time series** (tanks re-detected from 12 Jun 2024: 328 found;
+  13 usable scenes from 9 Nov to 28 Jan; 14 min on 4 cores). It locked 236 heights
+  (median 16.1 m) and flagged 26 tanks as fixed-roof suspects.
+
+  ![Cushing winter 2024-25](docs/cushing_winter_2024-25.png)
+
+  - Gap-filled total: about 15.5 M bbl in November, falling to about 12.7 M by
+    late January. A straight-line fit gives **−0.22 ± 0.04 M bbl/week**, a
+    decline of about 2.6 M over the period.
+  - Scatter around that line is ±0.55 M per scene (about 4%). Per-tank fills
+    5 days apart agree to 0.012–0.021 (median), so most of that scatter is
+    scene-wide (offset, shadow level), not per tank.
+  - Tank lists from summer 2023 and summer 2024, detected independently: 238
+    tanks are in both, and their diameters agree to +0.4 m median with 1.1 m
+    MAD. About 25% of each list is not shared, so **do not compare totals
+    between winters**; the tank sets differ.
+  - Not validated against EIA: eia.gov is unreachable from the build container.
+
 ## Honest limitations (read before believing a number)
 
 1. **No summer data.** At Cushing the sun at overpass is above about 45° from
